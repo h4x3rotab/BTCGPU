@@ -14,18 +14,14 @@
 #include "uint256.h"
 #include "util.h"
 
+#define NUM_OF_BLOCKS_DIFF_ADJ 10
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
 {
     assert(pindexLast != nullptr);
     unsigned int nProofOfWorkLimit = UintToArith256(params.powLimit).GetCompact();
 
     int nHeightNext = pindexLast->nHeight + 1;
-    if (nHeightNext >= params.BTGHeight  && nHeightNext < params.BTGHeight + params.BTGPremineWindow)
-    {
-        // Lowest difficulty for Bitcoin GPU premining period.
-        return nProofOfWorkLimit;
-    }
-    else if (nHeightNext % params.DifficultyAdjustmentInterval() != 0)
+ if (nHeightNext % params.DifficultyAdjustmentInterval() != 0)
     {
         // Difficulty adjustment interval is not finished. Keep the last value.
         if (params.fPowAllowMinDifficultyBlocks)
@@ -47,8 +43,8 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
         return pindexLast->nBits;
     }
 
-    // Go back by what we want to be 14 days worth of blocks
-    int nHeightFirst = pindexLast->nHeight - (params.DifficultyAdjustmentInterval()-1);
+    // Calculate the diff for the next block based on the block time in the last 10 blocks
+    int nHeightFirst = pindexLast->nHeight - NUM_OF_BLOCKS_DIFF_ADJ;
     assert(nHeightFirst >= 0);
     const CBlockIndex* pindexFirst = pindexLast->GetAncestor(nHeightFirst);
     assert(pindexFirst);
@@ -62,7 +58,7 @@ unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nF
         return pindexLast->nBits;
 
     // Limit adjustment step
-    int64_t nActualTimespan = pindexLast->GetBlockTime() - nFirstBlockTime;
+    int64_t nActualTimespan = (pindexLast->GetBlockTime() - nFirstBlockTime) / NUM_OF_BLOCKS_DIFF_ADJ;
     if (nActualTimespan < params.nPowTargetTimespan/4)
         nActualTimespan = params.nPowTargetTimespan/4;
     if (nActualTimespan > params.nPowTargetTimespan*4)
