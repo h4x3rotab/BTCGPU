@@ -34,15 +34,76 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
         // Pow limit start for warm-up period.
         return UintToArith256(params.powLimitStart).GetCompact();
     }
+    else if (nHeight < params.BTGJacobEmaHeight) {
+        // Regular Digishield v3.
+        return DigishieldGetNextWorkRequired(pindexLast, pblock, params);
+    } else {
+        // Jacob's EMA.
+        return JacobEmaGetNextWorkRequired(pindexLast, pblock, params);
+    }
+}
 
-    // Regular Digishield v3.
-    return DigishieldGetNextWorkRequired(pindexLast, pblock, params);
+unsigned int JacobEmaGetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock,
+                                         const Consensus::Params& params)
+{
+    assert(pindexLast != nullptr);
+    unsigned int nProofOfWorkLimit = UintToArith256(params.PowLimit(true)).GetCompact();
+
+    if (params.fPowAllowMinDifficultyBlocks) {
+        // Special difficulty rule for testnet:
+        // If the new block's timestamp is more than 2* 10 minutes
+        // then allow mining of a min-difficulty block.
+        if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2)
+            return nProofOfWorkLimit;
+    }
+
+    int T = params.nPowTargetSpacing;   // 600
+    int N = params.nJacobEmaAveragingWindow;   // 50
+    int limit = std::min(7, std::max(N * 100 / 89) - N), 10);
+
+    // Find the max timestamp within last `limit` blocks.
+    int height_first = pindexLast->nHeight - limit + 1;
+    assert(height_first >= 0);
+    int64_t max_time = 0;
+    for (int i = nHeightFirst; i < pindexLast->nHeight; ++i) {
+        int64_t block_time = pindexLast->GetAncestor(i)->GetBlockTime();
+        if (block_time > max_time) {
+            max_time = block_time;
+        }
+    }
+
+    uint64_t solve_time = pindexLast->GetBlockTime() - max_time;   // ~600
+    solve_time = std::max(T / 200, std::min(T * limit, ST));
+
+
+    // (T, N, solve_time) --> int32/64
+
+
+    // next_D = previous_D * ( T/ST + e^(-ST*2/T/N) * (1-T/ST) )
+    // 1 / target = (1 / previous_target) * ( T/ST + e^(-ST*2/T/N) * (1-T/ST) )
+
+    // target = previous_target / ( T/ST + e^(-ST*2/T/N) * (1-T/ST) )
+    //        = previous_target * ( .... )
+
+
+    const CBlockIndex* pindexFirst = pindexLast->GetAncestor(nHeightFirst);
+    assert(pindexFirst);
+
+    return JacobEmaCalculateNextWorkRequired(pindexLast, pindexFirst->GetBlockTime(), params);
+}
+
+unsigned int JacobEmaCalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime,
+                                               const Consensus::Params& params)
+{
+    // TODO
 }
 
 unsigned int DigishieldGetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock,
                                            const Consensus::Params& params)
 {
     assert(pindexLast != nullptr);
+    if (params.fPowNoRetargeting)
+        return pindexLast->nBits;
     unsigned int nProofOfWorkLimit = UintToArith256(params.PowLimit(true)).GetCompact();  // Always postfork.
 
     const CBlockIndex* pindexFirst = pindexLast;

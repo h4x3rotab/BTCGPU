@@ -19,6 +19,11 @@ class uint256;
 /** PoW algorithm entry. */
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params&);
 
+/** Jacob Eliosoff's EMA - used in Bitcion Gold testnet currently */
+unsigned int JacobEmaGetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params);
+unsigned int JacobEmaCalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime, const Consensus::Params& params);
+
+
 /** Digishield v3 - used in Bitcoin Gold mainnet currently */
 unsigned int DigishieldGetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params&);
 unsigned int DigishieldCalculateNextWorkRequired(arith_uint256 bnAvg, int64_t nLastBlockTime, int64_t nFirstBlockTime, const Consensus::Params& params);
