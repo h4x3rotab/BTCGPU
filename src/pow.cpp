@@ -14,6 +14,9 @@
 #include "uint256.h"
 #include "util.h"
 
+#include <algorithm>
+#include <iostream>
+
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock,
                                  const Consensus::Params& params)
 {
@@ -59,13 +62,14 @@ unsigned int JacobEmaGetNextWorkRequired(const CBlockIndex* pindexLast, const CB
 
     int T = params.nPowTargetSpacing;   // 600
     int N = params.nJacobEmaAveragingWindow;   // 50
-    int limit = std::min(7, std::max(N * 100 / 89) - N), 10);
+
+    int limit = std::min(7, std::max((N * 100 / 89) - N, 10));
 
     // Find the max timestamp within last `limit` blocks.
     int height_first = pindexLast->nHeight - limit + 1;
     assert(height_first >= 0);
     int64_t max_time = 0;
-    for (int i = nHeightFirst; i < pindexLast->nHeight; ++i) {
+    for (int i = height_first; i < pindexLast->nHeight; ++i) {
         int64_t block_time = pindexLast->GetAncestor(i)->GetBlockTime();
         if (block_time > max_time) {
             max_time = block_time;
@@ -73,8 +77,7 @@ unsigned int JacobEmaGetNextWorkRequired(const CBlockIndex* pindexLast, const CB
     }
 
     uint64_t solve_time = pindexLast->GetBlockTime() - max_time;   // ~600
-    solve_time = std::max(T / 200, std::min(T * limit, ST));
-
+    solve_time = std::max((uint64_t)(T / 200), std::min((uint64_t)(T * limit), solve_time));  // 200???? 3?
 
     // (T, N, solve_time) --> int32/64
 
@@ -86,7 +89,7 @@ unsigned int JacobEmaGetNextWorkRequired(const CBlockIndex* pindexLast, const CB
     //        = previous_target * ( .... )
 
 
-    const CBlockIndex* pindexFirst = pindexLast->GetAncestor(nHeightFirst);
+    const CBlockIndex* pindexFirst = pindexLast->GetAncestor(height_first);
     assert(pindexFirst);
 
     return JacobEmaCalculateNextWorkRequired(pindexLast, pindexFirst->GetBlockTime(), params);

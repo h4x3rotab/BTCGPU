@@ -47,6 +47,31 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     genesis.hashPrevBlock.SetNull();
     genesis.nHeight  = 0;
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
+
+    {
+        Consensus::Params p;
+        p.BTGHeight = 100;
+
+        bool fNegative;
+        bool fOverflow;
+        arith_uint256 bnTarget;
+        bnTarget.SetCompact(nBits, &fNegative, &fOverflow);
+
+        uint32_t next = 0;
+        printf("checking pow of block {t=%u}\n", nTime);
+        while (UintToArith256(genesis.GetHash(p)) > bnTarget) {
+            genesis.nNonce = ArithToUint256(arith_uint256(next++));
+            if (!(next & 0x00ffffff)) {
+                printf("searching: %x %.2f\n", next, (float)(next >> 24) * 100.0f / 256.0f);
+            }
+            if (!next) {
+                printf("glgg...\n");
+                exit(-1);
+            }
+        }
+        printf("nonce: %s\n", genesis.nNonce.ToString().c_str());
+    }
+
     return genesis;
 }
 
@@ -100,7 +125,7 @@ public:
         consensus.BTGHeight = 491407; // Around 10/25/2017 12:00 UTC
         consensus.BTGPremineWindow = 8000;
         consensus.BTGPremineEnforceWhitelist = true;
-        consnesus.BTGJacobEmaHeight = std::numeric_limits<int>::max();  // Not activated yet.
+        consensus.BTGJacobEmaHeight = std::numeric_limits<int>::max();  // Not activated yet.
         consensus.powLimit = uint256S("0007ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.powLimitStart = uint256S("0000000fffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.powLimitLegacy = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
@@ -271,13 +296,16 @@ public:
         pchMessageStart[3] = 0x45;
         nDefaultPort = 18338;
         nPruneAfterHeight = 1000;
-        const size_t N = 200, K = 9;  // Same as mainchain.
+        const size_t N = 200, K = 9;  // Same as mainnet.
         BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
         nEquihashN = N;
         nEquihashK = K;
 
         // TODO: change genesis block
-        genesis = CreateGenesisBlock(1296688602, 414098458, 0x1d00ffff, 1, 50 * COIN);
+        // -- (uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+        //         1296688602,       414098458,     0x1d00ffff,                1,                    50 * COIN
+        // new:    1516123513,               ?,
+        genesis = CreateGenesisBlock(1516123514, 0, 0x1d00ffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash(consensus);
         assert(consensus.hashGenesisBlock == uint256S("0x000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"));
         assert(genesis.hashMerkleRoot == uint256S("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));
@@ -334,7 +362,7 @@ public:
         consensus.BTGHeight = 3000;
         consensus.BTGPremineWindow = 10;
         consensus.BTGPremineEnforceWhitelist = false;
-        consnesus.BTGJacobEmaHeight = -1;
+        consensus.BTGJacobEmaHeight = -1;
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.powLimitStart = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.powLimitLegacy = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
