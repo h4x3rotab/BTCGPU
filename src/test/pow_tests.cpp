@@ -82,4 +82,54 @@ BOOST_AUTO_TEST_CASE(GetBlockProofEquivalentTime_test)
         BOOST_CHECK_EQUAL(tdiff, p1->GetBlockTime() - p2->GetBlockTime());
     }
 }
+
+// Jacob's EMA
+
+/* Check the precision of f128 Tyler series */
+BOOST_AUTO_TEST_CASE(f128_neg_exp_test)
+{
+    long double b64 = powl(2, 64);
+    long double b128 = powl(2, 128);
+    for (long double x = 0.2; x < 0.8; x += 0.001L) {
+        arith_uint256 f128((uint64_t)(x * b64));
+        f128 <<= 64;
+        arith_uint256 f128_result = f128_neg_exp(f128, 25);
+        long double test_result = f128_result.getdouble() / b128;
+        long double real_result = expl(-x);
+        BOOST_CHECK_LE((test_result - real_result) / real_result, 1e-8l);  // 1e-8 ~= 1 / 0xffffff
+    }
+}
+
+/* Check no significant delta% of the fixed point calculation */
+void CheckJacobEmaCalculateDelta(uint32_t previous_target, uint64_t solve_time)
+{
+    const long double dmax = powl(2, 256-1);
+    int T = 600;
+    int N = 50;
+    uint32_t target = JacobEmaCalculateNextWorkRequired(T, N, solve_time, previous_target);
+    arith_uint256 u256_target;
+    u256_target.SetCompact(target);
+    long double test_diff = dmax / u256_target.getdouble();
+
+    arith_uint256 u256_previous_target;
+    u256_previous_target.SetCompact(previous_target);
+    long double prev_diff = dmax / u256_previous_target.getdouble();
+    long double ST = solve_time;
+    long double T_ = T;
+    long double real_diff = prev_diff * (T_ / ST + expl(-2.0L * ST / (T_ * N)) * (1.0L - T_ / ST));
+
+    BOOST_CHECK_LE((test_diff - real_diff) / real_diff, 1e-6l);
+}
+
+/* Check the Jacob's EMA calculation */
+BOOST_AUTO_TEST_CASE(JacobEmaCalculateNextWorkRequired_test)
+{
+    for (uint32_t previous_target = 0x10333333; previous_target <= 0x1d333333; previous_target += 0x01000000) {
+        CheckJacobEmaCalculateDelta(previous_target, 755);
+    }
+    for (uint64_t solve_time = 10; solve_time <= 3600; solve_time += 100) {
+        CheckJacobEmaCalculateDelta(0x1d333333, solve_time);
+    }
+}
+
 BOOST_AUTO_TEST_SUITE_END()

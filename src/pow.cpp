@@ -13,6 +13,7 @@
 #include "streams.h"
 #include "uint256.h"
 #include "util.h"
+#include <algorithm>
 
 #include <algorithm>
 #include <iostream>
@@ -54,7 +55,7 @@ unsigned int JacobEmaGetNextWorkRequired(const CBlockIndex* pindexLast, const CB
 
     if (params.fPowAllowMinDifficultyBlocks) {
         // Special difficulty rule for testnet:
-        // If the new block's timestamp is more than 2* 10 minutes
+        // If the new block's timestamp is more than 2*10 minutes
         // then allow mining of a min-difficulty block.
         if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2)
             return nProofOfWorkLimit;
@@ -78,27 +79,68 @@ unsigned int JacobEmaGetNextWorkRequired(const CBlockIndex* pindexLast, const CB
 
     uint64_t solve_time = pindexLast->GetBlockTime() - max_time;   // ~600
     solve_time = std::max((uint64_t)(T / 200), std::min((uint64_t)(T * limit), solve_time));  // 200???? 3?
+    uint32_t previous_target = pindexLast->nBits;
 
-    // (T, N, solve_time) --> int32/64
-
-
-    // next_D = previous_D * ( T/ST + e^(-ST*2/T/N) * (1-T/ST) )
-    // 1 / target = (1 / previous_target) * ( T/ST + e^(-ST*2/T/N) * (1-T/ST) )
-
-    // target = previous_target / ( T/ST + e^(-ST*2/T/N) * (1-T/ST) )
-    //        = previous_target * ( .... )
-
-
-    const CBlockIndex* pindexFirst = pindexLast->GetAncestor(height_first);
-    assert(pindexFirst);
-
-    return JacobEmaCalculateNextWorkRequired(pindexLast, pindexFirst->GetBlockTime(), params);
+    return JacobEmaCalculateNextWorkRequired(T, N , solve_time, previous_target);
 }
 
-unsigned int JacobEmaCalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime,
-                                               const Consensus::Params& params)
+unsigned int JacobEmaCalculateNextWorkRequired(int T, int N, uint64_t solve_time_u64, uint32_t previous_target)
 {
-    // TODO
+    // This function implements a deterministic version of Jacob's EMA algorithm:
+    //    diff = prev_diff * (T / ST + exp(-2 * ST / (T * N)) * (1 - T / ST))
+    // which is equivelant to:
+    //    target = prev_target * ST / ((ST - T) * exp(-2 * ST / (T * N)) - T)
+    //
+    // It uses 256-bits fixed point to represent real number in a deterministic way.
+    // Variables prefixed by "f128" means the base is 2^128, while "f192" means the base is 2^192.
+    // E.g.
+    //            x == 0x1122
+    //       f128_x == 0x1122 << 128
+    //       f192_x == 0x1122 << 192
+
+    static const int TARGET_SHIFT = 192;
+    static const int FIXED_SHIFT = 128;
+
+    arith_uint256 solve_time(solve_time_u64);
+
+    // Convert the compact target to magnifier (target_size) and value (prev_target_value).
+    // (Assume previous_target is a positive number)
+    uint32_t target_size = (previous_target >> 24) & 0xFF;
+    arith_uint256 prev_target_value = previous_target & 0x7FFFFF;
+    // Use base 2^192 fixed point to ensure the precision when divided by a base 2^128 number later.
+    arith_uint256 f192_prev_target = prev_target_value << TARGET_SHIFT;
+
+    // exp_result = exp(-2 * ST / (T * N))
+    arith_uint256 f128_exp = (solve_time << 128) * 2 / (T * N);
+    arith_uint256 f128_exp_result = f128_neg_exp(f128_exp);
+
+    // den = (ST - T) * exp_r + T
+    arith_uint256 f128_den = (solve_time - T) * f128_exp_result + (arith_uint256(T) << 128);
+    // target = prev_target * ST / den
+    arith_uint256 target = (f192_prev_target * solve_time / f128_den) >> (TARGET_SHIFT - FIXED_SHIFT);
+
+    // Apply the magnifier from the previous target:
+    //   target = target * 2^(8 * (magnifier - 3))
+    if (target_size <= 3) {
+        target >>= (8 * (3 - target_size));
+    } else {
+        target <<= (8 * (target_size - 3));
+    }
+    uint32_t result = target.GetCompact();
+    return result;
+}
+
+arith_uint256 f128_neg_exp(arith_uint256 f128_x, int n)
+{
+    // Calculate exp(-x) in 256-bits fixed point with 2^128 base by Tylor series:
+    //     exp(-x) = 1 - x * (1 - x/2 * (1 - x/3 * ( ... * (1 - x/n) )))
+    static const arith_uint256 f128_1 = arith_uint256(1) << 128;
+    arith_uint256 f128_result = f128_1;
+    while(n > 0){
+        f128_result = (f128_1 - f128_x * f128_result / n) >> 128;
+        n--;
+    }
+    return f128_result;
 }
 
 unsigned int DigishieldGetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock,
