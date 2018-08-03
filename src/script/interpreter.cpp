@@ -1232,6 +1232,7 @@ uint256 SignatureHash(const CScript& scriptCode, const CTransaction& txTo, unsig
         }
 
         CHashWriter ss(SER_GETHASH, 0);
+        ss.EnableDebug();
         // Version
         ss << txTo.nVersion;
         // Input prevouts/nSequence (none/all, depending on flags)

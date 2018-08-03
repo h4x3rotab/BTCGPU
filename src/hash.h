@@ -134,15 +134,23 @@ private:
 
     const int nType;
     const int nVersion;
+    bool debug;
 public:
 
-    CHashWriter(int nTypeIn, int nVersionIn) : nType(nTypeIn), nVersion(nVersionIn) {}
+    CHashWriter(int nTypeIn, int nVersionIn) : nType(nTypeIn), nVersion(nVersionIn), debug(false) {}
+
+    void EnableDebug() {
+        debug = true;
+    }
 
     int GetType() const { return nType; }
     int GetVersion() const { return nVersion; }
 
     void write(const char *pch, size_t size) {
         ctx.Write((const unsigned char*)pch, size);
+        for (size_t i = 0; i < size; ++i) {
+            printf("%02x", (uint8_t)pch[i]);
+        }
     }
 
     // invalidates the object
@@ -155,7 +163,9 @@ public:
     template<typename T>
     CHashWriter& operator<<(const T& obj) {
         // Serialize to this stream
+        printf("CHashWriter << ");
         ::Serialize(*this, obj);
+        printf("\n");
         return (*this);
     }
 };
