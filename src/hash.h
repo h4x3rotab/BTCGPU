@@ -148,8 +148,10 @@ public:
 
     void write(const char *pch, size_t size) {
         ctx.Write((const unsigned char*)pch, size);
-        for (size_t i = 0; i < size; ++i) {
-            printf("%02x", (uint8_t)pch[i]);
+        if (debug) {
+            for (size_t i = 0; i < size; ++i) {
+                printf("%02x", (uint8_t)pch[i]);
+            }
         }
     }
 
@@ -163,9 +165,9 @@ public:
     template<typename T>
     CHashWriter& operator<<(const T& obj) {
         // Serialize to this stream
-        printf("CHashWriter << ");
+        if (debug) { printf("CHashWriter << "); }
         ::Serialize(*this, obj);
-        printf("\n");
+        if (debug) { printf("\n"); }
         return (*this);
     }
 };
