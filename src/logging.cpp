@@ -24,6 +24,7 @@ const char * const DEFAULT_DEBUGLOGFILE = "debug.log";
 BCLog::Logger* const g_logger = new BCLog::Logger();
 
 bool fLogIPs = DEFAULT_LOGIPS;
+bool fLogIPsVerbose = false;
 
 static int FileWriteStr(const std::string &str, FILE *fp)
 {
