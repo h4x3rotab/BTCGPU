@@ -1540,8 +1540,9 @@ bool static ProcessHeadersMessage(CNode *pfrom, CConnman *connman, const std::ve
                     uint32_t nFetchFlags = GetFetchFlags(pfrom);
                     vGetData.push_back(CInv(MSG_BLOCK | nFetchFlags, pindex->GetBlockHash()));
                     MarkBlockAsInFlight(pfrom->GetId(), pindex->GetBlockHash(), pindex);
-                    LogPrint(BCLog::NET, "Requesting block %s from  peer=%d\n",
-                            pindex->GetBlockHash().ToString(), pfrom->GetId());
+                    std::string node_verbose = PeerIpVerbose(pfrom);
+                    LogPrint(BCLog::NET, "Requesting block %s from  peer=%d%s\n",
+                            pindex->GetBlockHash().ToString(), pfrom->GetId(), node_verbose);
                 }
                 if (vGetData.size() > 1) {
                     LogPrint(BCLog::NET, "Downloading blocks toward %s (%d) via headers direct fetch\n",
@@ -1594,7 +1595,8 @@ bool static ProcessHeadersMessage(CNode *pfrom, CConnman *connman, const std::ve
 
 bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, int64_t nTimeReceived, const CChainParams& chainparams, CConnman* connman, const std::atomic<bool>& interruptMsgProc, bool enable_bip61)
 {
-    LogPrint(BCLog::NET, "received: %s (%u bytes) peer=%d\n", SanitizeString(strCommand), vRecv.size(), pfrom->GetId());
+    std::string node_verbose = PeerIpVerbose(pfrom);
+    LogPrint(BCLog::NET, "received: %s (%u bytes) peer=%d%s\n", SanitizeString(strCommand), vRecv.size(), pfrom->GetId(), node_verbose);
     if (gArgs.IsArgSet("-dropmessagestest") && GetRand(gArgs.GetArg("-dropmessagestest", 0)) == 0)
     {
         LogPrintf("dropmessagestest DROPPING RECV MESSAGE\n");
@@ -3774,8 +3776,9 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
                 uint32_t nFetchFlags = GetFetchFlags(pto);
                 vGetData.push_back(CInv(MSG_BLOCK | nFetchFlags, pindex->GetBlockHash()));
                 MarkBlockAsInFlight(pto->GetId(), pindex->GetBlockHash(), pindex);
-                LogPrint(BCLog::NET, "Requesting block %s (%d) peer=%d\n", pindex->GetBlockHash().ToString(),
-                    pindex->nHeight, pto->GetId());
+                std::string node_verbose = PeerIpVerbose(pto);
+                LogPrint(BCLog::NET, "Requesting block %s (%d) peer=%d%s\n", pindex->GetBlockHash().ToString(),
+                    pindex->nHeight, pto->GetId(), node_verbose);
             }
             if (state.nBlocksInFlight == 0 && staller != -1) {
                 if (State(staller)->nStallingSince == 0) {
@@ -3793,7 +3796,8 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
             const CInv& inv = (*pto->mapAskFor.begin()).second;
             if (!AlreadyHave(inv))
             {
-                LogPrint(BCLog::NET, "Requesting %s peer=%d\n", inv.ToString(), pto->GetId());
+                std::string node_verbose = PeerIpVerbose(pto);
+                LogPrint(BCLog::NET, "Requesting %s peer=%d%s\n", inv.ToString(), pto->GetId(), node_verbose);
                 vGetData.push_back(inv);
                 if (vGetData.size() >= 1000)
                 {
